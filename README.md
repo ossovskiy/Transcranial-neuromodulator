@@ -151,6 +151,7 @@ In the event of a single parameter anomaly, signal generation is instantaneously
 
 * **Primary Power:** Standard $5\text{V}$ USB-C power bank
 
+*The native KiCad project files, along with printable PDF exports, can be found in the `/hardware` directory of this repository.*
 
 
 ## Electrode Construction
