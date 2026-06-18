@@ -122,7 +122,7 @@ In the event of a single parameter anomaly, signal generation is instantaneously
 
 
 ## Circuit Diagram
-![Transcranial Neuromodulator Schematic] (hardware/exports/schematic.svg)
+![Transcranial Neuromodulator Schematic](hardware/exports/schematic.svg)
 
 
 ### Operation Modes
