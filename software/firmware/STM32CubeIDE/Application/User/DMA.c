@@ -21,7 +21,8 @@
 #define PADS_RES 6000	//Electrodes intrinsic resistance
 #define DIODE_DROP 252	//One diode drop in ADC terms
 
-#define THRESH 1000 //The value for detecting frozen DAC
+#define THRESH 00 //The value for detecting frozen DAC
+#define MAX_DAC_HEALTH_SAMPLES 300	//How many samples to take in order to detect frozen DAC
 
 static float const VoltPerCount = (32.5 / 16384.0);	//Calculating voltage from ADC numbers (32v is the maximum absolute voltage opamp outputs, minus one diode drop)
 static float const OpAmpR = 15700.0;	//The resistance at the head (output resistors before rubber pads resistance)
@@ -270,12 +271,27 @@ void GPDMA1_Channel13_IRQHandler(){
 		}
 	}
 	//If DAC gets frozen (may happen) and starts outputting DC - reset the system
+	//We take several seconds worth of samples at the electrodes, subtract the minimum measured value from the maximum
+	//Take an average also
+	//And should the variance be too small, relative to the average, it means that we have a large DC component
+	//And that in turn means that the DAC is stuck, so reset the device.
 	static int k = 0;
-	if(ADC_results[Output] > abs((TIMER_getCurrentSample() >> 1)) + THRESH && TIMER_isSineRunning() && !main_getErrorCode()){	//Making the sample "compatible" with the 14-bit ADC
-		if(k >= 20){
-			__NVIC_SystemReset();
-		}else k++;
-	}else (k <= 0) ? k = 0 : k--;
+	static int dacAcc = 0;
+	static int dacMax = 0;
+	static int dacMin = 0;
+	if(TIMER_isSineRunning() && !main_getErrorCode()){
+		if(k++ == 0) dacMax = dacMin = dacAcc = ADC_results[Output];	//First measurement
+		else{
+			if(ADC_results[Output] > dacMax) dacMax = ADC_results[Output];
+			else if(ADC_results[Output] < dacMin) dacMin = ADC_results[Output];
+			dacAcc += ADC_results[Output];
+			if(k >= MAX_DAC_HEALTH_SAMPLES){
+				int dacAverage = dacAcc / k;
+				if(dacMax - dacMin < (dacAverage >> 1)) __NVIC_SystemReset();	//If the signal span is smaller than a half of the average, it means the DC component is large, which means that most probably the DAC is stuck
+				else k = dacAcc = 0;
+			}
+		}
+	}
 	//Adjust the sine frequency if no automatic modulation requested.
 	//Since this is a computationally expensive procedure, we will only perform it when the slider has moved.
 	//In general, the frequency calculation formula uses 10 bits value, so we will keep it that way
