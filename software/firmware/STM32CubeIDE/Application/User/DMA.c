@@ -171,7 +171,7 @@ bool DMA_isADCHealthy(void){
 	return adcHealthy;
 }
 
-void DMA_acknwledgeADCHealthy(void){
+void DMA_acknowledgeADCHealthy(void){
 	adcHealthy = false;
 }
 
@@ -221,11 +221,12 @@ void GPDMA1_Channel13_IRQHandler(){
  */
 	int currentSample = (abs(TIMER_getCurrentSample()) >> 1);	//Since sample swings positive and negative, we need an absolute value. We also match it with the 14-bit ADC resolution
 	static int i = 0;
+	unsigned short output = ADC_results[Output]; //The point at the electrodes
 	if(currentSample > OFFTHRESH){
-		int output = (int)ADC_results[Output]; //Since the ADC gets signal through a diode, at low voltages the drop introduces substantial bullshit
+		//Since the ADC gets signal through a diode, at low voltages the drop introduces substantial bullshit
 		float resistorVoltage = VoltPerCount * (float)(currentSample - (output + DIODE_DROP));
 		float current = (resistorVoltage / OpAmpR) + 0.0000001;	//Just making sure we avoid division by zero
-		int skinResistance = (int)(VoltPerCount * (float)2.0f * output / current) - PADS_RES;	//Since we measure resistance relative to the ground, but in fact we have a bridge, which doubles the voltage, so in order to get the right resistance, we need to multiply it by 2
+		int skinResistance = (int)(VoltPerCount * 2.0f * (float)output / current) - PADS_RES;	//Since we measure resistance relative to the ground, but in fact we have a bridge, which doubles the voltage, so in order to get the right resistance, we need to multiply it by 2
 		//When the resistor drop is zero (electrodes off), ADC may "see" a bigger value at the output,
 		//which may end up in the "negative" resistance. It doesn't matter, since what we want to know
 		//is that there is virtually no voltage drop on the resistors, which means that the electrodes
@@ -245,19 +246,22 @@ void GPDMA1_Channel13_IRQHandler(){
 	//consequently the current, or frequency passing through the head will jump also, which is obviously not desirable.
 	//So, since humans cannot move the slider too quickly, if we see that two consecutive slider readings have a difference,
 	//bigger than 15% of the total range, it means the slider is faulty and produces glitches.
-	if((abs(ADC_results[Amplitude] - prevTestValueAmplitude) > sliderFaultThreshold) && (prevTestValueAmplitude >= 0)){
+	unsigned short valueAmplitude = ADC_results[Amplitude];
+	unsigned short valueFrequency = ADC_results[Freq];
+	unsigned short valueOffTimer = ADC_results[OffTimer];
+	if((abs(valueAmplitude - prevTestValueAmplitude) > sliderFaultThreshold) && (prevTestValueAmplitude >= 0)){
 		HELPER_systemHalt();
 		main_markError(SliderFault);
-	}else if((abs(ADC_results[Freq] - prevTestValueFrequency) > sliderFaultThreshold) && (prevTestValueFrequency >= 0)){
+	}else if((abs(valueFrequency- prevTestValueFrequency) > sliderFaultThreshold) && (prevTestValueFrequency >= 0)){
 		HELPER_systemHalt();
 		main_markError(SliderFault);
-	}else if((abs(ADC_results[OffTimer] - prevTestValueOffTimer) > sliderFaultThreshold) && (prevTestValueOffTimer >= 0)){
+	}else if((abs(valueOffTimer - prevTestValueOffTimer) > sliderFaultThreshold) && (prevTestValueOffTimer >= 0)){
 		HELPER_systemHalt();
 		main_markError(SliderFault);
 	}else{
-		prevTestValueAmplitude = ADC_results[Amplitude];
-		prevTestValueFrequency = ADC_results[Freq];
-		prevTestValueOffTimer = ADC_results[OffTimer];
+		prevTestValueAmplitude = valueAmplitude;
+		prevTestValueFrequency = valueFrequency;
+		prevTestValueOffTimer = valueOffTimer;
 	}
 	static short prevFreq = 0;
 	static short prevAmplitude = 0;
@@ -265,39 +269,41 @@ void GPDMA1_Channel13_IRQHandler(){
 	//We will limit both amplitude and frequency steps to 10 bits in order to improve noise immunity.
 	//Yet, we will feed the full 14bit value to CORDIC
 	if(!TIMER_isFadeoutRunning()){	//When the final amplitude fade out is in progress, the timer module will take care of it
-		if(prevAmplitude != (ADC_results[Amplitude] >> 4)){
-			HELPER_Set_Cordic_m(ADC_results[Amplitude]);
-			prevAmplitude = (ADC_results[Amplitude] >> 4);
+		if(prevAmplitude != (valueAmplitude >> 4)){
+			HELPER_Set_Cordic_m(valueAmplitude);
+			prevAmplitude = (valueAmplitude >> 4);
 		}
 	}
+	//Adjust the sine frequency if no automatic modulation requested.
+	//Since this is a computationally expensive procedure, we will only perform it when the slider has moved.
+	//In general, the frequency calculation formula uses 10 bits value, so we will keep it that way
+	if((prevFreq != (valueFrequency >> 4)) && (!TIMER_isModulationRequested())){
+		TIMER_setSineFreq(valueFrequency >> 4);
+		prevFreq = (valueFrequency >> 4);
+	}
+	/* Frozen DAC protection
 	//If DAC gets frozen (may happen) and starts outputting DC - reset the system
-	//We take several seconds worth of samples at the electrodes, subtract the minimum measured value from the maximum
-	//Take an average also
-	//And should the variance be too small, relative to the average, it means that we have a large DC component
+	//We take several seconds worth of samples at the electrodes, calculate the average, min and max values
+	//Then, we subtract the minimum measured value from the maximum
+	//Should the variance be too small relative to the average, it means that we have a large DC component
 	//And that in turn means that the DAC is stuck, so reset the device.
+	 */
 	static int k = 0;
 	static int dacAcc = 0;
 	static int dacMax = 0;
 	static int dacMin = 0;
 	if(TIMER_isSineRunning() && !main_getErrorCode()){
-		if(k++ == 0) dacMax = dacMin = dacAcc = ADC_results[Output];	//First measurement
+		if(k++ == 0) dacMax = dacMin = dacAcc = output;	//First measurement
 		else{
-			if(ADC_results[Output] > dacMax) dacMax = ADC_results[Output];
-			else if(ADC_results[Output] < dacMin) dacMin = ADC_results[Output];
-			dacAcc += ADC_results[Output];
+			if(output > dacMax) dacMax = output;
+			else if(output < dacMin) dacMin = output;
+			dacAcc += output;
 			if(k >= MAX_DAC_HEALTH_SAMPLES){
 				int dacAverage = dacAcc / k;
 				if(dacMax - dacMin < (dacAverage >> 1)) __NVIC_SystemReset();	//If the signal span is smaller than a half of the average, it means the DC component is large, which means that most probably the DAC is stuck
 				else k = dacAcc = 0;
 			}
 		}
-	}
-	//Adjust the sine frequency if no automatic modulation requested.
-	//Since this is a computationally expensive procedure, we will only perform it when the slider has moved.
-	//In general, the frequency calculation formula uses 10 bits value, so we will keep it that way
-	if((prevFreq != (ADC_results[Freq] >> 4)) && (!TIMER_isModulationRequested())){
-		TIMER_setSineFreq(ADC_results[Freq] >> 4);
-		prevFreq = (ADC_results[Freq] >> 4);
 	}
 	static unsigned char j = 0;
 	//SLow down the blinking a bit in order to be able to see it
