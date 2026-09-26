@@ -40,7 +40,7 @@ Twenty-eight years ago, I suffered an accident resulting in a severe concussion.
 
 ## Principle of Operation
 
-The device passes a pure, low-frequency ($0.25\text{ Hz to }4\text{ Hz}$) sinusoidal alternating current (AC) through the brain via cranial electrodes positioned behind the ears.
+The device passes a pure, low-frequency ($0.25\text{ Hz to }4\text{ Hz}$) sinusoidal alternating current (AC) through the brain via cranial electrodes positioned behind the ears, while at the same time providing visual stimulation via red LEDS, utilizing the same sinusoidal signal.
 
 
 
@@ -141,13 +141,13 @@ In the event of a single parameter anomaly, signal generation is instantaneously
 
 * **Digital-to-Analog:** Mikroe "DAC 9 click" (TI DAC80501)
 
-* **Amplification:** 2x OPA596 (High-Voltage Op-Amps), 2x ADA4528 (Zero-Drift Op-Amps)
+* **Amplification:** 3x OPA596 (High-Voltage Op-Amps), 2x ADA4528 (Zero-Drift Op-Amps)
 
 * **User Input:** 3x $10\text{k}\Omega$ potentiometers, onboard Nucleo user button
 
 * **Alert System:** Active buzzer module
 
-* **Chassis & Mount:** Repurposed Bose N700 headphones for electrode housing
+* **Chassis & Mount:** Repurposed Bose N700 headphones for electrode housing and several red LEDs, mounted on a pair of transparent lab glasses
 
 * **Primary Power:** Standard $5\text{V}$ USB-C power bank
 
@@ -160,15 +160,15 @@ In the event of a single parameter anomaly, signal generation is instantaneously
 
 2. Fitted the earcups with aftermarket silicone covers.
 
-3. Sourced a sheet of conductive rubber.
+3. Sourced a sheet of conductive carbon fabric.
 
 4. Patterned and cut the rubber to seamlessly line the rear half of the earcup cushions (ensuring contact is isolated strictly to the retroauricular region behind the ears).
 
 5. Applied a micro-layer of flexible transparent liquid silicone adhesive to the posterior section of the earcup covers.
 
-6. Affixed the tailored conductive rubber sections to the prepared silicone substrate.
+6. Affixed the tailored conductive carbon fabric sections to the prepared silicone substrate.
 
-7. Terminated the signal wiring to the conductive rubber elements using silver-filled electrically conductive epoxy and metal clamps.
+7. Terminated the signal wiring to the conductive fabric elements using silver-filled electrically conductive epoxy and metal clamps.
 
 8. Encapsulated the structural wire joints beneath an additional layer of non-conductive silicone to ensure robust strain relief.
 
@@ -242,7 +242,7 @@ The codebase was developed entirely within the **STM32CubeIDE** environment. Bec
 
 3. Moisten both the headphone rubber electrodes and the skin surfaces with the saline solution using a cotton swab.
 
-4. Mount the headphone chassis firmly onto the head, ensuring alignment over the prepped skin.
+4. Mount the headphone chassis firmly onto the head, ensuring alignment over the prepped skin and put on the LED glasses
 
 5. *(Optional)* Initiate ambient acoustic background audio through the headphone's standard Bluetooth audio path if desired.
 
